@@ -480,3 +480,21 @@ GO
 EXEC Benefits_Account '01011121011', 1
 GO
 
+--2.3 E--
+CREATE FUNCTION Account_SMS_Offers
+(@MobileNo char(11))
+RETURNS TABLE
+AS
+RETURN 
+(
+SELECT Exclusive_Offer.*
+FROM Exclusive_Offer JOIN Benefits ON (Exclusive_Offer.benefitID = Benefits.benefitID)
+WHERE Benefits.mobileNo = @MobileNo
+)
+GO
+
+SELECT * FROM dbo.Account_SMS_Offers('01211959101')
+GO
+
+
+

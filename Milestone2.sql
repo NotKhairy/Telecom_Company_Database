@@ -1,3 +1,4 @@
+--2.1 A--
 CREATE DATABASE Telecom_Team_58;
 
 GO
@@ -230,8 +231,9 @@ GO
 
 EXEC createAllTables;
 
--- 2.1 C --
 GO
+
+-- 2.1 C --
 CREATE PROCEDURE DropAllTables
 AS
 	DROP TABLE IF EXISTS Transfer_money, Cashback, Points_Group, 
@@ -242,9 +244,9 @@ AS
 GO
 
 EXEC DropAllTables
-
--- 2.1 D (Missing droping Functions and Views)--
 GO 
+
+-- 2.1 D (Missing dropping Functions and Views)--
 CREATE PROCEDURE dropALLProceduresFunctionsViews
 AS
     -- DROP ALL PROCEDURES --
@@ -260,33 +262,164 @@ EXEC dropALLProceduresFunctionsViews
 
 -- 2.1 E--
 GO
+
+-- 2.1 E--
 CREATE PROCEDURE clearAllTables
 AS
-    TRUNCATE TABLE Transfer_money;
-    TRUNCATE TABLE Cashback;
-    TRUNCATE TABLE Points_Group;
-    TRUNCATE TABLE Exclusive_Offer;
-    TRUNCATE TABLE Plan_Provides_Benefits;
-    TRUNCATE TABLE Benefits;
-    TRUNCATE TABLE Subscription;
-    TRUNCATE TABLE Plan_Usage;
-    TRUNCATE TABLE Process_Payment;
-    TRUNCATE TABLE Payment;
-    TRUNCATE TABLE Wallet;
-    TRUNCATE TABLE Voucher;
-    TRUNCATE TABLE Technical_Support_Ticket;
-    TRUNCATE TABLE Customer_Account;
-    TRUNCATE TABLE Eshop;
-    TRUNCATE TABLE Physical_shop;
-    TRUNCATE TABLE Service_Plan;
-    TRUNCATE TABLE Shop;
-    TRUNCATE TABLE Customer_profile;
+    DELETE FROM Transfer_money;
+    DELETE FROM Cashback;
+    DELETE FROM Points_Group;
+    DELETE FROM Exclusive_Offer;
+    DELETE FROM Plan_Provides_Benefits;
+    DELETE FROM Benefits;
+    DELETE FROM Subscription;
+    DELETE FROM Plan_Usage;
+    DELETE FROM Process_Payment;
+    DELETE FROM Payment;
+    DELETE FROM Wallet;
+    DELETE FROM Voucher;
+    DELETE FROM Technical_Support_Ticket;
+    DELETE FROM Eshop;
+    DELETE FROM Physical_shop;
+    DELETE FROM Service_Plan;
+    DELETE FROM Shop;
+    DELETE FROM Customer_Account;
+    DELETE FROM Customer_profile;  
 GO
 
-EXEC clearAllTables -- Not Working --
+EXEC clearAllTables -- Working but with delete and not truncate--
+GO
+
+----------------------------------------------------------------------------------------------------------------------------
+
+--2.2 A--
+CREATE VIEW allCustomerAccounts AS
+SELECT 
+    Customer_profile.nationalID,
+    Customer_profile.first_name,
+    Customer_profile.last_name,
+    Customer_profile.email,
+    Customer_profile.address,
+    Customer_profile.date_of_birth,
+    Customer_Account.mobileNo,
+    Customer_Account.pass,
+    Customer_Account.balance,
+    Customer_Account.account_type,
+    Customer_Account.start_date,
+    Customer_Account.status,
+    Customer_Account.point
+FROM 
+    Customer_profile JOIN  Customer_Account ON 
+        Customer_profile.nationalID = Customer_Account.nationalID
+WHERE 
+    Customer_Account.status = 'active';
+GO
+
+SELECT * FROM allCustomerAccounts
+GO
+
+--2.2 B--
+CREATE VIEW allServicePlans AS
+SELECT *
+FROM Service_Plan
+GO
+
+SELECT * FROM allServicePlans
+GO
+
+--2.2 C--
+CREATE VIEW allBenefits AS
+SELECT * 
+FROM Benefits
+WHERE status = 'active'
+GO
+
+SELECT * FROM allBenefits
+GO
+
+--2.2 D--
+CREATE VIEW AccountPayments AS
+SELECT
+Payment.amount,
+Payment.date_of_payment,
+Payment.mobileNo,
+Payment.payment_method,
+Payment.paymentID,
+Payment.status,
+Customer_Account.account_type,
+Customer_Account.balance,
+Customer_Account.nationalID,
+Customer_Account.pass,
+Customer_Account.point,
+Customer_Account.start_date,
+Customer_Account.status AS account_status
+FROM Payment JOIN Customer_Account ON (Payment.mobileNo = Customer_Account.mobileNo)
+GO
+
+SELECT * FROM AccountPayments
+GO
+
+--2.2 E--
+CREATE VIEW allShops AS
+SELECT *
+FROM Shop
+GO
+
+SELECT * FROM allShops
+GO
+
+--2.2 F--
+CREATE VIEW allResolvedTickets AS
+SELECT * 
+FROM Technical_Support_Ticket
+WHERE Technical_Support_Ticket.status = 'Resolved'
+GO
+
+SELECT * FROM allResolvedTickets
+GO
+
+--2.2 G--
+CREATE VIEW CustomerWallet AS
+SELECT w.*, cp.first_name, cp.last_name
+FROM Wallet AS w JOIN Customer_profile AS cp ON (cp.nationalID = w.nationalID)
+GO
+
+SELECT * FROM CustomerWallet
+GO
+
+--2.2 H--
+CREATE VIEW E_shopVouchers AS
+SELECT Eshop.*, Voucher.redeem_date, Voucher.value
+FROM Eshop JOIN Voucher ON (Eshop.shopID = Voucher.shopID)
+WHERE Voucher.redeem_date IS NOT NULL
+GO
+
+SELECT * FROM E_shopVouchers
+GO
+
+--2.2 I--
+CREATE VIEW PhysicalStoreVouchers AS
+SELECT Physical_shop.*, Voucher.voucherID, Voucher.value
+FROM Physical_shop JOIN Voucher ON (Physical_shop.shopID = Voucher.shopID)
+WHERE Voucher.redeem_date IS NOT NULL
+GO
+
+SELECT * FROM PhysicalStoreVouchers
+GO
+
+--2.2 J--
+CREATE VIEW Num_of_cashback AS
+SELECT Wallet.walletID, Count(Cashback.walletID) AS number_of_cashbacks
+FROM Wallet JOIN Cashback ON (Wallet.walletID = Cashback.walletID)
+GROUP BY Wallet.walletID; 
+GO
+
+SELECT * FROM Num_of_cashback
+GO
+
+----------------------------------------------------------------------------------------------------------------------------
 
 --2.3 A--
-GO
 CREATE PROCEDURE Account_Plan
 AS
     SELECT A.*, P.* FROM Customer_Account A
@@ -295,9 +428,46 @@ AS
 GO
 
 EXEC Account_Plan
-
--- 2.3 D --
 GO
+
+--2.3 B--
+CREATE FUNCTION Account_Plan_date
+(@Subscription_Date date,
+@Plan_id int)
+RETURNS TABLE
+
+AS
+
+RETURN
+(
+SELECT Customer_Account.mobileNo, Subscription.planID, Service_Plan.name
+FROM Customer_Account JOIN Subscription ON (Customer_Account.mobileNo = Subscription.mobileNo) JOIN Service_Plan ON (Service_Plan.planID = Subscription.planID)
+WHERE Subscription.subscription_date = @Subscription_Date AND Subscription.planID = @Plan_id
+)
+GO
+
+Select * from dbo.Account_Plan_date('10/10/2024',123)
+GO
+
+--2.3 C--
+CREATE FUNCTION Account_Usage_Plan
+(@MobileNo char(11),
+@from_date date)
+RETURNS TABLE
+
+AS
+RETURN
+(
+SELECT Plan_Usage.planID, Plan_Usage.data_consumption AS 'total data consumed',Plan_Usage.minutes_used AS 'total minutes used', Plan_Usage.SMS_sent AS 'total SMS'
+FROM Customer_Account JOIN Plan_Usage ON (Plan_Usage.mobileNo = Customer_Account.mobileNo)
+WHERE Customer_Account.mobileNo = @MobileNo AND Plan_Usage.start_date >= @from_date
+)
+GO
+
+SELECT * FROM dbo.Account_Usage_Plan('01211959101', '10/10/2024')
+GO
+
+--2.3 D--
 CREATE PROCEDURE Benefits_Account
     @MobileNo CHAR(11), 
     @planID INT
@@ -308,3 +478,5 @@ AS
 GO
 
 EXEC Benefits_Account '01011121011', 1
+GO
+

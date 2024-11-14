@@ -497,4 +497,34 @@ SELECT * FROM dbo.Account_SMS_Offers('01211959101')
 GO
 
 
+--2.3 F--
+CREATE PROCEDURE Account_Payment_Points
+@MobileNo char(11),
+@total_transactions int OUTPUT,
+@total_points int OUTPUT
 
+AS
+BEGIN
+    SELECT @total_transactions = COUNT(payment.status)
+    FROM Payment 
+    WHERE Payment.mobileNo = @MobileNo 
+      AND Payment.date_of_payment >= DATEADD(year, -1, CURRENT_TIMESTAMP)
+      AND payment.status = 'successful'
+
+    SELECT @total_points = Customer_Account.point
+    FROM Customer_Account
+    WHERE Customer_Account.mobileNo = @MobileNo
+END
+GO
+
+DECLARE @total_transactions INT;
+DECLARE @total_points INT;
+EXEC Account_Payment_Points
+@MobileNo = '12345678901',
+@total_transactions = @total_transactions OUTPUT,
+@total_points = @total_points OUTPUT
+SELECT @total_transactions AS TotalTransactions, @total_points AS TotalPoints;
+GO
+
+
+--2.3 G--

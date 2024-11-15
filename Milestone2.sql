@@ -1,10 +1,10 @@
---2.1 A--
+-- 2.1 A --
 CREATE DATABASE Telecom_Team_58;
 
 GO
 USE Telecom_Team_58;
 
---2.1 B--
+-- 2.1 B --
 GO
 CREATE PROCEDURE createAllTables
 AS
@@ -246,7 +246,7 @@ GO
 EXEC DropAllTables
 GO 
 
--- 2.1 D (Missing dropping Functions and Views)--
+-- 2.1 D (Missing dropping Functions and Views) --
 CREATE PROCEDURE dropALLProceduresFunctionsViews
 AS
     -- DROP ALL PROCEDURES --
@@ -260,10 +260,8 @@ GO
 
 EXEC dropALLProceduresFunctionsViews
 
--- 2.1 E--
+-- 2.1 E --
 GO
-
--- 2.1 E--
 CREATE PROCEDURE clearAllTables
 AS
     DELETE FROM Transfer_money;
@@ -292,7 +290,7 @@ GO
 
 ----------------------------------------------------------------------------------------------------------------------------
 
---2.2 A--
+-- 2.2 A --
 CREATE VIEW allCustomerAccounts AS
 SELECT 
     Customer_profile.nationalID,
@@ -318,7 +316,7 @@ GO
 SELECT * FROM allCustomerAccounts
 GO
 
---2.2 B--
+-- 2.2 B --
 CREATE VIEW allServicePlans AS
 SELECT *
 FROM Service_Plan
@@ -327,7 +325,7 @@ GO
 SELECT * FROM allServicePlans
 GO
 
---2.2 C--
+-- 2.2 C --
 CREATE VIEW allBenefits AS
 SELECT * 
 FROM Benefits
@@ -337,7 +335,7 @@ GO
 SELECT * FROM allBenefits
 GO
 
---2.2 D--
+-- 2.2 D --
 CREATE VIEW AccountPayments AS
 SELECT
 Payment.amount,
@@ -359,7 +357,7 @@ GO
 SELECT * FROM AccountPayments
 GO
 
---2.2 E--
+-- 2.2 E --
 CREATE VIEW allShops AS
 SELECT *
 FROM Shop
@@ -368,7 +366,7 @@ GO
 SELECT * FROM allShops
 GO
 
---2.2 F--
+-- 2.2 F --
 CREATE VIEW allResolvedTickets AS
 SELECT * 
 FROM Technical_Support_Ticket
@@ -378,7 +376,7 @@ GO
 SELECT * FROM allResolvedTickets
 GO
 
---2.2 G--
+-- 2.2 G --
 CREATE VIEW CustomerWallet AS
 SELECT w.*, cp.first_name, cp.last_name
 FROM Wallet AS w JOIN Customer_profile AS cp ON (cp.nationalID = w.nationalID)
@@ -387,7 +385,7 @@ GO
 SELECT * FROM CustomerWallet
 GO
 
---2.2 H--
+-- 2.2 H --
 CREATE VIEW E_shopVouchers AS
 SELECT Eshop.*, Voucher.redeem_date, Voucher.value
 FROM Eshop JOIN Voucher ON (Eshop.shopID = Voucher.shopID)
@@ -397,7 +395,7 @@ GO
 SELECT * FROM E_shopVouchers
 GO
 
---2.2 I--
+-- 2.2 I --
 CREATE VIEW PhysicalStoreVouchers AS
 SELECT Physical_shop.*, Voucher.voucherID, Voucher.value
 FROM Physical_shop JOIN Voucher ON (Physical_shop.shopID = Voucher.shopID)
@@ -407,7 +405,7 @@ GO
 SELECT * FROM PhysicalStoreVouchers
 GO
 
---2.2 J--
+-- 2.2 J --
 CREATE VIEW Num_of_cashback AS
 SELECT Wallet.walletID, Count(Cashback.walletID) AS number_of_cashbacks
 FROM Wallet JOIN Cashback ON (Wallet.walletID = Cashback.walletID)
@@ -419,7 +417,7 @@ GO
 
 ----------------------------------------------------------------------------------------------------------------------------
 
---2.3 A--
+-- 2.3 A --
 CREATE PROCEDURE Account_Plan
 AS
     SELECT A.*, P.* FROM Customer_Account A
@@ -430,7 +428,7 @@ GO
 EXEC Account_Plan
 GO
 
---2.3 B--
+-- 2.3 B --
 CREATE FUNCTION Account_Plan_date
 (@Subscription_Date date,
 @Plan_id int)
@@ -449,7 +447,7 @@ GO
 Select * from dbo.Account_Plan_date('10/10/2024',123)
 GO
 
---2.3 C--
+-- 2.3 C --
 CREATE FUNCTION Account_Usage_Plan
 (@MobileNo char(11),
 @from_date date)
@@ -467,7 +465,7 @@ GO
 SELECT * FROM dbo.Account_Usage_Plan('01211959101', '10/10/2024')
 GO
 
---2.3 D--
+-- 2.3 D --
 CREATE PROCEDURE Benefits_Account
     @MobileNo CHAR(11), 
     @planID INT
@@ -480,7 +478,7 @@ GO
 EXEC Benefits_Account '01011121011', 1
 GO
 
---2.3 E--
+-- 2.3 E --
 CREATE FUNCTION Account_SMS_Offers
 (@MobileNo char(11))
 RETURNS TABLE
@@ -497,7 +495,7 @@ SELECT * FROM dbo.Account_SMS_Offers('01211959101')
 GO
 
 
---2.3 F--
+-- 2.3 F --
 CREATE PROCEDURE Account_Payment_Points
 @MobileNo char(11),
 @total_transactions int OUTPUT,
@@ -527,4 +525,96 @@ SELECT @total_transactions AS TotalTransactions, @total_points AS TotalPoints;
 GO
 
 
---2.3 G--
+-- 2.3 G --
+GO
+CREATE FUNCTION Wallet_Cashback_Amount (
+    @WalletId INT,
+    @planId INT
+)
+RETURNS DECIMAL(10, 2)
+AS
+BEGIN
+    DECLARE @CashbackAmount DECIMAL(10, 2);
+
+    SET @CashbackAmount = 0.1 * (
+        SELECT P.amount
+        FROM Payment P 
+        INNER JOIN Process_Payment PP ON P.paymentID = PP.paymentID
+        INNER JOIN Plan_provides_Benefits PB ON PB.planID = PP.planID
+        INNER JOIN Cashback C ON C.benefitID = PB.benefitID
+        WHERE C.walletID = @WalletId AND PP.planID = @planId
+    );
+
+    RETURN @CashbackAmount;
+END;
+GO
+
+SELECT dbo.Wallet_Cashback_Amount(101, 202) AS CashbackAmount;
+
+-- 2.3 H --
+GO
+CREATE FUNCTION Wallet_Transfer_Amount (
+    @Wallet_id INT,
+    @start_date DATE,
+    @end_date DATE
+)
+RETURNS DECIMAL(10,2)
+AS
+BEGIN
+    DECLARE @TransactionAmountAverage DECIMAL(10,2);
+
+    SET @TransactionAmountAverage = (
+        SELECT AVG(T.amount)
+        FROM Transfer_money T
+        WHERE T.walletID1 = @Wallet_id AND T.transfer_date <= @end_date
+        AND T.transfer_date >= @start_date
+    );
+
+    RETURN @TransactionAmountAverage;
+END;
+GO
+
+SELECT dbo.Wallet_Transfer_Amount(101, '2024-11-09', '2024-11-23');
+
+-- 2.3 I --
+GO
+CREATE FUNCTION Wallet_MobileNo (
+    @MobileNo CHAR(11)
+)
+RETURNS BIT
+AS
+BEGIN
+    DECLARE @isLinked BIT;
+
+    SET @isLinked = CASE 
+        WHEN EXISTS (
+            SELECT *
+            FROM Wallet W
+            WHERE W.mobileNo = @MobileNo
+        )
+        THEN 1
+        ELSE 0
+    END;
+
+    RETURN @isLinked;
+END;
+GO
+
+SELECT dbo.Wallet_MobileNo('01011121011');
+
+-- 2.3 J --
+GO
+CREATE PROCEDURE Total_Points_Account
+@MobilNo CHAR(11),
+@TotalPoints INT OUTPUT
+
+AS
+BEGIN
+    SELECT @TotalPoints = SUM(P.pointsAmount)
+    FROM Points_Group P INNER JOIN Benefits B ON P.benefitID = B.benefitID
+    WHERE B.mobileNo = @MobilNo
+END
+GO
+
+DECLARE @total INT;
+EXEC Total_Points_Account '01011121011', @total OUTPUT;

@@ -553,6 +553,8 @@ SELECT dbo.Wallet_Cashback_Amount(101, 202) AS CashbackAmount;
 
 -- 2.3 H --
 GO
+
+-- 2.3 H --
 CREATE FUNCTION Wallet_Transfer_Amount (
     @Wallet_id INT,
     @start_date DATE,
@@ -578,6 +580,8 @@ SELECT dbo.Wallet_Transfer_Amount(101, '2024-11-09', '2024-11-23');
 
 -- 2.3 I --
 GO
+
+-- 2.3 I --
 CREATE FUNCTION Wallet_MobileNo (
     @MobileNo CHAR(11)
 )
@@ -618,3 +622,111 @@ GO
 
 DECLARE @total INT;
 EXEC Total_Points_Account '01011121011', @total OUTPUT;
+GO
+
+-- 2.4 A --
+CREATE FUNCTION AccountLoginValidation
+(
+    @MobileNo CHAR(11),
+    @Password VARCHAR(50)
+)
+RETURNS BIT
+AS
+BEGIN
+    DECLARE @Success BIT;
+
+    IF EXISTS (
+        SELECT *
+        FROM Customer_Account
+        WHERE mobileNo = @MobileNo AND pass = @Password
+    )
+    BEGIN
+        SET @Success = 1;
+    END
+    ELSE
+    BEGIN
+        SET @Success = 0;
+    END
+
+    RETURN @Success;
+END;
+GO
+
+SELECT dbo.AccountLoginValidation('01234567890', 'password123') AS LoginSuccess;
+GO
+
+-- 2.4 B --
+CREATE FUNCTION Consumption
+(
+    @Plan_name VARCHAR(50),
+    @start_date DATE,
+    @end_date DATE
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT 
+        SUM(PU.data_consumption) AS DataConsumption,
+        SUM(PU.minutes_used) AS MinutesUsed,
+        SUM(PU.SMS_sent) AS SMSSent
+    FROM 
+        Plan_Usage PU
+    INNER JOIN 
+        Service_Plan SP ON PU.planID = SP.planID
+    WHERE 
+        SP.name = @Plan_name
+        AND PU.start_date >= @start_date
+        AND PU.end_date <= @end_date
+)
+GO
+
+SELECT * FROM dbo.Consumption('Basic Plan', '2023-01-01', '2023-12-31');
+GO
+
+-- 2.4 C --
+CREATE PROCEDURE Unsubscribed_Plans
+(
+    @MobileNo CHAR(11)
+)
+AS
+BEGIN
+    SELECT SP.*
+    FROM Service_Plan SP
+    WHERE SP.planID NOT IN (
+        SELECT S.planID
+        FROM Subscription S
+        WHERE S.mobileNo = @MobileNo
+    );
+END;
+GO
+
+EXEC Unsubscribed_Plans '01234567890';
+GO
+
+-- 2.4 D --
+CREATE FUNCTION Usage_Plan_CurrentMonth
+(
+    @MobileNo CHAR(11)
+)
+RETURNS TABLE
+AS
+RETURN
+(
+    SELECT 
+        PU.data_consumption AS DataConsumption,
+        PU.minutes_used AS MinutesUsed,
+        PU.SMS_sent AS SMSSent
+    FROM 
+        Plan_Usage PU JOIN Subscription S ON (PU.planID = S.planID)
+    WHERE 
+        PU.mobileNo = @MobileNo
+        AND S.status = 'active'
+        AND MONTH(PU.start_date) = MONTH(GETDATE())
+        AND YEAR(PU.start_date) = YEAR(GETDATE())
+)
+GO
+
+SELECT * FROM dbo.Usage_Plan_CurrentMonth('01234567890');
+GO
+

@@ -550,8 +550,6 @@ END;
 GO
 
 SELECT dbo.Wallet_Cashback_Amount(101, 202) AS CashbackAmount;
-
--- 2.3 H --
 GO
 
 -- 2.3 H --
@@ -577,8 +575,6 @@ END;
 GO
 
 SELECT dbo.Wallet_Transfer_Amount(101, '2024-11-09', '2024-11-23');
-
--- 2.3 I --
 GO
 
 -- 2.3 I --
@@ -623,6 +619,8 @@ GO
 DECLARE @total INT;
 EXEC Total_Points_Account '01011121011', @total OUTPUT;
 GO
+
+-----------------------------------------------------------------------------------------------------------
 
 -- 2.4 A --
 CREATE FUNCTION AccountLoginValidation
@@ -730,3 +728,162 @@ GO
 SELECT * FROM dbo.Usage_Plan_CurrentMonth('01234567890');
 GO
 
+-- 2.4 E --
+CREATE FUNCTION Cashback_Wallet_Customer (
+    @NationalID INT
+)
+RETURNS TABLE
+AS 
+RETURN (
+    SELECT C.*
+    FROM Cashback C
+    INNER JOIN Wallet W ON C.walletID = W.walletID
+    INNER JOIN Customer_profile P ON P.nationalID = W.nationalID
+    WHERE P.nationalID = @NationalID
+)
+GO
+
+SELECT * FROM dbo.Cashback_Wallet_Customer('1');
+GO
+
+-- 2.4 F --
+CREATE PROCEDURE Ticket_Account_Customer
+    @NationalID INT
+AS
+BEGIN
+    SELECT COUNT(T.ticketID)
+    FROM Technical_Support_Ticket T
+    WHERE T.status <> 'Resolved'
+END;
+GO
+
+EXEC Ticket_Account_Customer 1;
+GO
+
+-- 2.4 G --
+CREATE PROCEDURE Account_Highest_Voucher
+    @MobileNo CHAR(11)
+AS
+BEGIN 
+    SELECT MAX(V.value)
+    FROM Voucher V
+    WHERE V.mobileNo = @MobileNo
+END;
+GO
+
+EXEC Account_Highest_Voucher '01011121011';
+GO
+
+-- 2.4 H --
+CREATE FUNCTION Remaining_plan_amount (
+    @MobileNo CHAR(11),
+    @plan_name VARCHAR(50)
+)
+RETURNS DECIMAL(10,2)
+AS
+BEGIN
+    DECLARE @Remaining_amount DECIMAL(10,2);
+    SET @Remaining_amount = (
+        SELECT PP.remaining_balance
+        FROM Process_Payment PP
+        INNER JOIN Service_Plan S ON PP.planID = S.planID
+        INNER JOIN Payment P ON PP.paymentID = P.paymentID
+        WHERE P.mobileNo = @MobileNo AND S.name = @plan_name
+    )
+    RETURN @Remaining_amount;
+END;
+GO
+
+SELECT * FROM dbo.Remaining_plan_amount('01011121011', 'plan'); -- NOT WORKING
+GO
+
+-- 2.4 I --
+CREATE FUNCTION Extra_plan_amount (
+    @MobileNo CHAR(11),
+    @plan_name VARCHAR(50)
+)
+RETURNS DECIMAL(10,2)
+AS
+BEGIN
+    DECLARE @Extra_amount DECIMAL(10,2)
+    SET @Extra_amount = (
+        SELECT PP.extra_amount
+        FROM Process_Payment PP
+        INNER JOIN Service_Plan S ON PP.planID = S.planID
+        INNER JOIN Payment P ON PP.paymentID = P.paymentID
+        WHERE P.mobileNo = @MobileNo AND S.name = @plan_name
+    )
+    RETURN @Extra_amount
+END;
+GO
+
+SELECT * FROM dbo.Extra_plan_amount('01011121011', 'plan'); -- NOT WORKING
+GO
+
+-- 2.4 J --
+CREATE PROCEDURE Top_Successful_Payments
+    @MobileNo CHAR(11)
+AS
+BEGIN
+    SELECT TOP 10 P.amount
+    FROM Payment P
+    WHERE P.status = 'Successful' AND P.mobileNo = @MobileNo
+    ORDER BY P.amount DESC;
+END;
+GO
+
+EXEC Top_Successful_Payments '01011121011';
+GO
+
+-- 2.4 K --
+CREATE FUNCTION Subscribed_plans_5_Months (
+    @MobileNo CHAR(11)
+)
+RETURNS TABLE
+AS 
+RETURN(
+    SELECT P.*
+    FROM Service_Plan P INNER JOIN Subscription S ON P.planID = S.planID
+    WHERE S.subscription_date >= DATEADD(MONTH, -5, GETDATE())
+)
+GO
+
+SELECT * FROM dbo.Subscribed_plans_5_Months('01011121011');
+GO
+
+-- 2.4 L --
+CREATE PROCEDURE Initiate_plan_payment
+    @MobileNo CHAR(11),
+    @amount DECIMAL(10,1),
+    @payment_method VARCHAR(50),
+    @plan_id INT
+AS
+BEGIN
+    DECLARE @current_balance DECIMAL(10,1);
+
+    SELECT @current_balance = balance
+    FROM Customer_Account
+    WHERE mobileNo = @MobileNo;
+
+    IF @current_balance IS NOT NULL
+    BEGIN
+        IF @current_balance >= @amount
+        BEGIN
+            UPDATE Customer_Account
+            SET balance = balance - @amount
+            WHERE mobileNo = @MobileNo;
+
+            INSERT INTO Payment (amount, date_of_payment, payment_method, status, mobileNo)
+            VALUES (@amount, GETDATE(), @payment_method, 'Successful', @MobileNo);
+        END
+        ELSE
+        BEGIN
+            INSERT INTO Payment (amount, date_of_payment, payment_method, status, mobileNo)
+            VALUES (@amount, GETDATE(), @payment_method, 'Rejected', @MobileNo);
+        END
+    END
+END;
+GO
+
+EXEC Initiate_plan_payment '01011121011',50,'Cash', 1;
+GO

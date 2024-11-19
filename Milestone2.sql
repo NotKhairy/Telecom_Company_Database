@@ -887,3 +887,81 @@ GO
 
 EXEC Initiate_plan_payment '01011121011',50,'Cash', 1;
 GO
+
+
+-- 2.4 M --
+CREATE PROCEDURE Payment_wallet_cashback
+    @MobileNo CHAR(11),
+    @payment_id INT,
+    @benefit_id INT
+AS
+BEGIN
+    DECLARE @cashback_amount DECIMAL(10, 2);
+    DECLARE @wallet_id INT;
+
+    SELECT @cashback_amount = 0.1 * P.amount
+    FROM Payment P
+    WHERE P.paymentID = @payment_id;
+
+    SELECT @wallet_id = W.walletID
+    FROM Wallet W
+    WHERE W.mobileNo = @MobileNo;
+
+    UPDATE Wallet
+    SET current_balance = current_balance + @cashback_amount
+    WHERE walletID = @wallet_id;
+
+    INSERT INTO Cashback (benefitID, walletID, amount, credit_date)
+    VALUES (@benefit_id, @wallet_id, @cashback_amount, GETDATE());
+END;
+GO
+
+EXEC Payment_wallet_cashback '01234567890', 1, 1; --Not working due to primary keys declarations
+GO
+
+
+-- 2.4 N --
+CREATE PROCEDURE Initiate_balance_payment
+    @MobileNo CHAR(11),
+    @amount DECIMAL(10,1),
+    @payment_method VARCHAR(50)
+AS
+BEGIN
+    INSERT INTO Payment (amount, date_of_payment, payment_method, status, mobileNo)
+    VALUES (@amount, GETDATE(), @payment_method, 'accepted', @MobileNo);
+
+    UPDATE Wallet
+    SET current_balance = current_balance + @amount,
+        last_modified_date = GETDATE()
+    WHERE mobileNo = @MobileNo;
+END;
+GO
+
+EXEC Initiate_balance_payment '01234567890', 100.0, 'Credit Card';
+GO
+
+-- 2.4 O --
+CREATE PROCEDURE Redeem_voucher_points
+    @MobileNo CHAR(11),
+    @voucher_id INT
+AS
+BEGIN
+        DECLARE @voucher_points INT;
+        SELECT @voucher_points = points
+        FROM Voucher
+        WHERE voucherID = @voucher_id;
+
+        UPDATE Voucher
+        SET redeem_date = GETDATE()
+        WHERE voucherID = @voucher_id;
+
+        UPDATE Customer_Account
+        SET point = point - @voucher_points
+        WHERE mobileNo = @MobileNo;
+
+END;
+GO
+
+EXEC Redeem_voucher_points '01234567890', 12321;
+GO
+
